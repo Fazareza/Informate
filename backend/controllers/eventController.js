@@ -160,13 +160,17 @@ exports.createEvent = async (req, res) => {
             userId
         ]);
 
+        const protocol = req.protocol; 
+        const host = req.get('host'); 
+        const fullImageUrl = `${protocol}://${host}/uploads/${bannerImage}`;
+
         res.status(201).json({
             success: true,
             message: 'Event berhasil ditambahkan',
             data: { 
                 event_id: result.insertId, 
                 nama_acara,
-                image_url: `http://localhost:3000/uploads/${bannerImage}` // Kirim URL lengkap agar mudah dipakai frontend
+                image_url: fullImageUrl // Kirim URL lengkap agar mudah dipakai frontend
             }
         });
 

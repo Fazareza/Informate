@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import {
   View,
@@ -6,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  Alert,
 } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,21 +24,22 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     try {
       const res = await api.post("/auth/login", { email, password });
-
-      const token = res.data.token;
-      const role = res.data.user.role;
-
-      await AsyncStorage.setItem("token", token);
-      await AsyncStorage.setItem("role", role);
-
-      if (role === "organizer") {
-        router.replace("/admin");
-      } else {
-        router.replace("/(tabs)");
+      
+      // 1. SIMPAN TOKEN KE MEMORI HP (Wajib!)
+      await AsyncStorage.setItem('userToken', res.data.token);
+      
+      // 2. Simpan Role juga (jika perlu untuk logika tampilan)
+      if (res.data.user && res.data.user.role) {
+         await AsyncStorage.setItem('userRole', res.data.user.role);
       }
+
+      Alert.alert("Sukses", "Login berhasil!");
+      router.replace("/admin"); // atau /(tabs) sesuai role
+      
     } catch (e: any) {
-      console.log(e.response?.data || e.message);
-      setErrorMsg("Email atau password salah.");
+      // Tampilkan pesan error dari backend jika ada
+      const errMsg = e.response?.data?.message || "Login gagal, cek email/password";
+      Alert.alert("Error", errMsg);
     }
   };
 
