@@ -116,26 +116,49 @@ export default function EditEvent() {
     }
   };
 
-  // ==================== UPDATE EVENT ====================
+  // ===== PERBAIKAN HANDLE UPDATE (GUNAKAN FORMDATA) =====
+  // ===== UPDATE EVENT (VERSI PERBAIKAN) =====
   const handleUpdate = async () => {
     setSaving(true);
     try {
-      await api.put(`/events/${id}`, {
-        ...form,
-        harga_tiket: parseInt(form.harga_tiket),
-        kuota_maksimal: parseInt(form.kuota_maksimal),
-        image_url: form.image ? form.image.uri : form.image_url,
-      });
+      // 1. Gunakan FormData
+      const formData = new FormData();
+
+      formData.append('nama_acara', form.nama_acara);
+      formData.append('tanggal_mulai', form.tanggal_mulai);
+      formData.append('lokasi', form.lokasi);
+      formData.append('deskripsi', form.deskripsi || '');
+      formData.append('kategori', form.kategori);
+      formData.append('harga_tiket', String(form.harga_tiket || '0'));
+      formData.append('kuota_maksimal', String(form.kuota_maksimal || '0'));
+      formData.append('contact_person', form.contact_person || '-');
+
+      // 2. Cek apakah user memilih gambar BARU?
+      // (form.image terisi saat user pickImage, form.image_url adalah gambar lama)
+      if (form.image && form.image.uri) {
+         const uriParts = form.image.uri.split('.');
+         const fileType = uriParts[uriParts.length - 1];
+
+         formData.append('banner_image', {
+            uri: form.image.uri,
+            name: `updated_photo.${fileType}`,
+            type: `image/${fileType}`,
+         } as any);
+      }
+      
+      // 3. Kirim PUT
+      await api.put(`/events/${id}`, formData);
 
       Alert.alert("Sukses", "Event berhasil diperbarui!");
       router.back();
-    } catch {
+    } catch (e) {
+      console.log("Error Update:", e);
       Alert.alert("Error", "Gagal mengupdate event");
     } finally {
       setSaving(false);
     }
   };
-
+  
   // ==================== DELETE EVENT ====================
   const handleDelete = () => {
     Alert.alert("Hapus Event", "Event ini akan dihapus permanen. Yakin?", [

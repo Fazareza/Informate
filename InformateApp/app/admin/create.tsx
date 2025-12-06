@@ -86,7 +86,9 @@ export default function CreateEvent() {
   };
 
   // ===== SAVE EVENT =====
+  // ===== SAVE EVENT (VERSI PERBAIKAN) =====
   const handleSave = async () => {
+    // 1. Validasi
     if (!form.nama_acara || !form.tanggal_mulai || !form.lokasi) {
       Alert.alert("Validasi", "Nama acara, tanggal, dan lokasi wajib diisi.");
       return;
@@ -95,24 +97,46 @@ export default function CreateEvent() {
     setSaving(true);
 
     try {
-      const payload = {
-        ...form,
-        harga_tiket: parseInt(form.harga_tiket) || 0,
-        kuota_maksimal: parseInt(form.kuota_maksimal) || 0,
-        image_url: form.image?.uri || null,
-      };
+      // 2. GUNAKAN FORMDATA (WAJIB UNTUK UPLOAD GAMBAR)
+      const formData = new FormData();
 
-      await api.post("/events", payload);
+      // Masukkan data teks (Semua harus String)
+      formData.append('nama_acara', form.nama_acara);
+      formData.append('tanggal_mulai', form.tanggal_mulai);
+      formData.append('lokasi', form.lokasi);
+      formData.append('deskripsi', form.deskripsi || '');
+      formData.append('kategori', form.kategori || 'Umum');
+      formData.append('harga_tiket', String(form.harga_tiket || '0')); // Ubah angka jadi string
+      formData.append('kuota_maksimal', String(form.kuota_maksimal || '0'));
+      formData.append('contact_person', form.contact_person || '-');
+
+      // 3. MASUKKAN FILE GAMBAR
+      if (form.image) {
+        // React Native butuh: uri, name, type
+        const uriParts = form.image.uri.split('.');
+        const fileType = uriParts[uriParts.length - 1];
+
+        formData.append('banner_image', {
+          uri: form.image.uri,
+          name: `photo.${fileType}`, // Nama file
+          type: `image/${fileType}`, // Mime type (image/jpeg atau image/png)
+        } as any); // 'as any' untuk menghindari error typescript di RN
+      }
+
+      // 4. KIRIM REQUEST
+      // Header 'Content-Type: multipart/form-data' akan otomatis diatur oleh Axios
+      // Jangan set manual!
+      await api.post("/events", formData);
 
       Alert.alert("Sukses", "Event baru berhasil ditambahkan!");
       router.back();
-    } catch (e) {
-      Alert.alert("Error", "Gagal menambahkan event baru");
+    } catch (e: any) {
+      console.log("Error detail:", e);
+      Alert.alert("Error", "Gagal menambahkan event baru. Cek koneksi Ngrok.");
     } finally {
       setSaving(false);
     }
   };
-
   const inputStyle = [
     styles.input,
     {
@@ -208,9 +232,9 @@ export default function CreateEvent() {
         >
           {pickedDate
             ? pickedDate.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
+              hour: "2-digit",
+              minute: "2-digit",
+            })
             : "Pilih waktu acara"}
         </Text>
       </TouchableOpacity>

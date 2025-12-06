@@ -147,7 +147,7 @@ exports.createEvent = async (req, res) => {
 
         const query = `
             INSERT INTO events 
-            (nama_acara, deskripsi, tanggal_mulai, lokasi, kategori, kuota_maksimal, harga_tiket, contact_person,banner_image, creator_id) 
+            (nama_acara, deskripsi, tanggal_mulai, lokasi, kategori, kuota_maksimal, harga_tiket, contact_person, banner_image, creator_id) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
@@ -182,29 +182,39 @@ exports.createEvent = async (req, res) => {
 // 3. EDIT EVENT (Butuh Login - Frontend yang filter tombolnya)
 exports.updateEvent = async (req, res) => {
     try {
-        const { id } = req.params; // ID Event dari URL
+        const { id } = req.params;
         const { 
             nama_acara, deskripsi, tanggal_mulai, lokasi, 
             kategori, kuota_maksimal, harga_tiket, contact_person 
         } = req.body;
 
-        // Cek apakah event ada?
-        const [check] = await db.query('SELECT * FROM events WHERE event_id = ?', [id]);
-        if (check.length === 0) {
+        // 1. Ambil data lama untuk cek gambar lama
+        const [oldData] = await db.query('SELECT banner_image FROM events WHERE event_id = ?', [id]);
+        if (oldData.length === 0) {
             return res.status(404).json({ message: 'Event tidak ditemukan' });
         }
 
-        // Update semua kolom (kecuali creator_id)
+        // 2. LOGIKA GAMBAR PINTAR
+        // Jika user upload gambar baru (req.file ada), pakai nama file baru.
+        // Jika tidak, tetap pakai nama file lama (dari database).
+        let bannerImage = oldData[0].banner_image; 
+        if (req.file) {
+            bannerImage = req.file.filename;
+        }
+
+        // 3. Update Query (Pastikan kolom banner_image ikut di-update)
         const query = `
             UPDATE events SET 
             nama_acara = ?, deskripsi = ?, tanggal_mulai = ?, lokasi = ?, 
-            kategori = ?, kuota_maksimal = ?, harga_tiket = ?, contact_person = ?
+            kategori = ?, kuota_maksimal = ?, harga_tiket = ?, contact_person = ?,
+            banner_image = ? 
             WHERE event_id = ?
         `;
 
         await db.query(query, [
             nama_acara, deskripsi, tanggal_mulai, lokasi, 
-            kategori, kuota_maksimal, harga_tiket, contact_person,
+            kategori, kuota_maksimal || 0, harga_tiket || 0, contact_person,
+            bannerImage, // Variabel gambar yang sudah dipilih
             id
         ]);
 
@@ -214,6 +224,7 @@ exports.updateEvent = async (req, res) => {
         });
 
     } catch (error) {
+        console.log("Error Update:", error); // Log error di terminal backend
         res.status(500).json({ success: false, message: 'Gagal update event', error: error.message });
     }
 };

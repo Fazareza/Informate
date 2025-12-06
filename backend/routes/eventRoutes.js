@@ -10,9 +10,9 @@ router.get('/', eventController.getAllEvents);
 
 router.post('/', 
     authMiddleware, 
-    upload.single('banner_image'), // 'banner_image' adalah nama key di form-data
+    upload.single('banner_image'),
     eventController.createEvent
 );
-router.put('/:id', authMiddleware, eventController.updateEvent);
+router.put('/:id', authMiddleware, upload.single('banner_image'), eventController.updateEvent);
 router.delete('/:id', authMiddleware, eventController.deleteEvent);
 module.exports = router;
