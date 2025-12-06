@@ -4,10 +4,6 @@ const jwt = require('jsonwebtoken');
 exports.getAllEvents = async (req, res) => {
     try {
         const { search, category, month, year, startDate, endDate } = req.query;
-        
-        // 1. CEK TOKEN MANUAL (Soft Auth)
-        // Kita lakukan ini manual karena endpoint ini PUBLIC (bisa diakses tanpa login)
-        // tapi jika ada token, kita butuh ID-nya untuk cek bookmark.
         let userId = null;
         const authHeader = req.header('Authorization');
         if (authHeader) {
@@ -16,7 +12,6 @@ exports.getAllEvents = async (req, res) => {
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
                 userId = decoded.id;
             } catch (err) {
-                // Token invalid/expired, abaikan saja (dianggap guest)
             }
         }
 
@@ -36,11 +31,8 @@ exports.getAllEvents = async (req, res) => {
             WHERE 1=1 
         `;
         
-        // Parameter awal untuk query utama (user_id untuk subquery bookmark)
-        // Jika userId null, kita kasih 0 agar subquery tidak error dan hasilnya 0 (false)
         const params = [userId || 0];
 
-        // 2. Filter-filter (Sama seperti sebelumnya)
         if (search) {
             query += ` AND e.nama_acara LIKE ?`;
             params.push(`%${search}%`);
@@ -61,12 +53,24 @@ exports.getAllEvents = async (req, res) => {
         query += ` ORDER BY e.tanggal_mulai ASC`;
 
         const [rows] = await db.query(query, params);
-        
-        // Konversi is_bookmarked dari 1/0 (Int) jadi true/false (Boolean) agar enak di Frontend
-        const finalData = rows.map(event => ({
-            ...event,
-            is_bookmarked: event.is_bookmarked > 0 // Jadi true jika 1, false jika 0
-        }));
+
+        const finalData = rows.map(event => {
+            // 1. Ambil base URL server (otomatis mendeteksi http/https dan domain ngrok)
+            const protocol = req.protocol;
+            const host = req.get('host');
+            
+            // 2. Rakit URL lengkap
+            // Jika banner_image ada, gabungkan. Jika tidak, null.
+            const fullImageUrl = event.banner_image 
+                ? `${protocol}://${host}/uploads/${event.banner_image}` 
+                : null;
+
+            return {
+                ...event,
+                is_bookmarked: event.is_bookmarked > 0,
+                image_url: fullImageUrl // <--- INI KUNCINYA (Frontend baca field ini)
+            };
+        });
 
         res.status(200).json({
             success: true,
@@ -117,9 +121,24 @@ exports.getEventById = async (req, res) => {
             return res.status(404).json({ message: 'Event tidak ditemukan' });
         }
 
+        const event = rows[0];
+
+        // === RAKIT URL UNTUK DETAIL ===
+        const protocol = req.protocol;
+        const host = req.get('host');
+        const fullImageUrl = event.banner_image 
+            ? `${protocol}://${host}/uploads/${event.banner_image}` 
+            : null;
+
+        // Gabungkan ke object response
+        const eventData = {
+            ...event,
+            image_url: fullImageUrl
+        };
+
         res.status(200).json({
             success: true,
-            data: rows[0] // Kirim objek tunggal (bukan array)
+            data: eventData // Kirim objek tunggal (bukan array)
         });
 
     } catch (error) {
