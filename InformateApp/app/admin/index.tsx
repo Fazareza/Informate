@@ -63,7 +63,7 @@ export default function AdminDashboard() {
       {/* ===================== TOPBAR ===================== */}
       <View style={styles.topbar}>
         <Text style={[styles.topbarTitle, { color: Colors[theme].text }]}>
-          Admin Dashboard
+          Informate
         </Text>
 
         <View style={styles.topbarActions}>

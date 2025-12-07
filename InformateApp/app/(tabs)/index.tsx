@@ -90,7 +90,8 @@ export default function TabsHome() {
     try {
       const raw = await AsyncStorage.getItem("informate_bookmarks_v1");
       setBookmarks(raw ? JSON.parse(raw) : []);
-    } catch (e) {
+    } catch (error) {
+      console.log("Error loading bookmarks:", error);
       setBookmarks([]);
     }
   };
@@ -144,7 +145,8 @@ export default function TabsHome() {
       if (!settings.granted) {
         await Notifications.requestPermissionsAsync();
       }
-    } catch (e) {
+    } catch (error) {
+      console.log("Error requesting notification permission:", error);
       // ignore
     }
   };

@@ -67,6 +67,24 @@ const api = {
       throw error;
     }
   },
+  // GET all users (for dashboard)
+  getUsers: async () => {
+    console.log("🚀 GET USERS:", API_URL + "/users");
+
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(API_URL + "/users", {
+        method: "GET",
+        headers,
+      });
+
+      console.log("✅ GET USERS Response:", response.status);
+      return await handleResponse(response);
+    } catch (error) {
+      console.error("❌ GET USERS Error:", error);
+      throw error;
+    }
+  },
 
   // POST Request
   post: async (url, data) => {

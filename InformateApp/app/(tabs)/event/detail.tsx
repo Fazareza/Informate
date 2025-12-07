@@ -39,7 +39,8 @@ export default function EventDetail() {
     try {
       const res = await api.get(`/events/${id}`);
       setEvent(res.data?.data || null);
-    } catch (e) {
+    } catch (error) {
+      console.log("Error fetching event detail:", error);
       Alert.alert("Error", "Gagal mengambil detail event");
       router.back();
     } finally {
@@ -74,6 +75,7 @@ export default function EventDetail() {
       setBookmarked(!bookmarked);
     } catch (e) {
       // ignore
+      console.log("Error toggling bookmark:", e);
     }
   };
 
