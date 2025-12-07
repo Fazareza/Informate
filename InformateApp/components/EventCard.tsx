@@ -13,10 +13,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 let BlurView: any;
 try {
-  // try expo-blur if available
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   BlurView = require("expo-blur").BlurView;
-} catch (e) {
+} catch (error) {
+  console.log("expo-blur not available:", error);
   BlurView = null;
 }
 
@@ -36,7 +35,13 @@ type Props = {
 
 export default function EventCard({
   event,
-  themeColors,
+  themeColors = {
+    background: "#fff",
+    text: "#000",
+    card: "#f8f8f8",
+    border: "#ddd",
+    secondaryText: "#666",
+  },
   bookmarked = false,
   onPress,
   onBookmarkChange,

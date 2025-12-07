@@ -41,7 +41,8 @@ export default function ManageAccount() {
       await api.put("/auth/update-profile", data);
       Alert.alert("Sukses", "Profil diperbarui.");
       router.back();
-    } catch (e) {
+    } catch (error) {
+      console.log("Error updating profile:", error);
       Alert.alert("Error", "Gagal memperbarui profil.");
     }
   };

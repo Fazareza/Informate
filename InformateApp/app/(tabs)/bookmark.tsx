@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  TouchableOpacity,
   FlatList,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -46,7 +45,8 @@ export default function BookmarksScreen() {
     try {
       const res = await api.get("/events");
       setEvents(res.data?.data || []);
-    } catch (e) {
+    } catch (error) {
+      console.log("Error fetching events:", error);
       setEvents([]);
     } finally {
       setLoading(false);

@@ -1,5 +1,5 @@
 // app/(tabs)/index.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { Swipeable } from "react-native-gesture-handler";
-import EventCard from "@/components/EventCard"; // pastikan komponen ini ada dan menerima props seperti event, bookmarked, onPress, onBookmarkChange
+import EventCard from "@/components/EventCard";
 import api from "../../src/api";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -27,8 +27,6 @@ import { Colors } from "@/constants/colors";
 import { useRouter } from "expo-router";
 
 const { width } = Dimensions.get("window");
-/** item width sedikit kurang dari layar supaya ada preview kanan/kiri */
-// lebih simetris dan tidak bergeser
 const ITEM_WIDTH = Math.round(width * 0.78);
 const SIDE_PADDING = (width - ITEM_WIDTH) / 2;
 const CAROUSEL_HEIGHT = Math.round(ITEM_WIDTH * 0.56);
@@ -47,12 +45,138 @@ export default function TabsHome() {
 
   const animCalendar = useRef(new Animated.Value(1)).current;
   const carouselRef = useRef<FlatList<any> | null>(null);
-  const autoScrollTimer = useRef<NodeJS.Timeout | null>(null);
+  const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentCarouselIndex = useRef(0);
 
   /* ==========================
-     Lifecycle - load data
+     Helper: bookmarks
   ========================== */
+  const loadBookmarks = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem("informate_bookmarks_v1");
+      setBookmarks(raw ? JSON.parse(raw) : []);
+    } catch (err) {
+      console.log("Error loading bookmarks:", err);
+      setBookmarks([]);
+    }
+  }, []);
+
+  const saveBookmark = useCallback(
+    async (eventId: number, state: boolean) => {
+      let updated = [...bookmarks];
+      if (state) {
+        if (!updated.includes(eventId)) updated.push(eventId);
+      } else {
+        updated = updated.filter((id) => id !== eventId);
+      }
+      setBookmarks(updated);
+      await AsyncStorage.setItem(
+        "informate_bookmarks_v1",
+        JSON.stringify(updated)
+      );
+      // optional: sync to backend if needed
+      // try { await api.post(`/events/${eventId}/bookmark`, { bookmarked: state }); } catch {}
+    },
+    [bookmarks]
+  );
+
+  /* ==========================
+     Notifications
+  ========================== */
+  const requestNotifPermission = useCallback(async () => {
+    try {
+      const settings = await Notifications.getPermissionsAsync();
+      if (!settings.granted) {
+        await Notifications.requestPermissionsAsync();
+      }
+    } catch (err) {
+      console.log("Error requesting notification permission:", err);
+    }
+  }, []);
+
+  const scheduleNotificationForEvent = useCallback(async (ev: any) => {
+    try {
+      if (!ev?.tanggal_mulai) return;
+      const date = new Date(ev.tanggal_mulai);
+      const triggerDate = new Date(date.getTime() - 60 * 60 * 1000); // 1 hour before
+      const diffSec = Math.floor((triggerDate.getTime() - Date.now()) / 1000);
+      if (diffSec > 0) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `Pengingat: ${ev.nama_acara}`,
+            body: `Acara dimulai ${date.toLocaleString()}`,
+            sound: true,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: 5,
+            repeats: false,
+          },
+        });
+      }
+    } catch (err) {
+      console.warn("schedule notification failed", err);
+    }
+  }, []);
+
+  const onBookmarkChange = useCallback(
+    async (eventId: number, state: boolean) => {
+      await saveBookmark(eventId, state);
+      if (state) {
+        const ev = events.find((e) => e.event_id === eventId);
+        if (ev) scheduleNotificationForEvent(ev);
+      }
+    },
+    [events, saveBookmark, scheduleNotificationForEvent]
+  );
+
+  /* ==========================
+     Events loading + carousel auto-scroll
+  ========================== */
+  // start auto-scroll using provided data (avoid race with setState)
+  const startAutoScrollWithData = useCallback((data: any[]) => {
+    if (autoScrollTimer.current) {
+      clearInterval(autoScrollTimer.current);
+      autoScrollTimer.current = null;
+    }
+    if (!carouselRef.current || data.length <= 1) return;
+
+    autoScrollTimer.current = setInterval(() => {
+      currentCarouselIndex.current =
+        (currentCarouselIndex.current + 1) % data.length;
+      carouselRef.current?.scrollToOffset({
+        offset: currentCarouselIndex.current * (ITEM_WIDTH + 20),
+        animated: true,
+      });
+    }, 4000);
+  }, []);
+
+  const loadEvents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/events");
+      const newEvents = res.data?.data || [];
+      setEvents(newEvents);
+
+      // compute carouselData similarly to render logic
+      const featured = (
+        newEvents.filter((e: any) => e.is_featured || e.is_popular) as any[]
+      ).slice(0, 8);
+      const carouselData = featured.length
+        ? featured
+        : newEvents.slice(0, Math.min(newEvents.length, 8));
+
+      // start auto scroll based on fresh data
+      startAutoScrollWithData(carouselData);
+    } catch (err) {
+      console.warn("Load events failed", err);
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [startAutoScrollWithData]);
+
+  /* Cleanup timer on unmount */
   useEffect(() => {
     (async () => {
       await loadBookmarks();
@@ -61,61 +185,17 @@ export default function TabsHome() {
     })();
 
     return () => {
-      // cleanup auto-scroll timer
-      if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
+      if (autoScrollTimer.current) {
+        clearInterval(autoScrollTimer.current);
+        autoScrollTimer.current = null;
+      }
     };
-  }, []);
-
-  useEffect(() => buildMarkedDates(), [events, selectedDate]);
-
-  /* ==========================
-     Load events & bookmarks
-  ========================== */
-  const loadEvents = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get("/events");
-      setEvents(res.data?.data || []);
-      // start carousel auto-scroll after events loaded
-      startAutoScroll();
-    } catch (e) {
-      console.warn("Load events failed", e);
-      setEvents([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadBookmarks = async () => {
-    try {
-      const raw = await AsyncStorage.getItem("informate_bookmarks_v1");
-      setBookmarks(raw ? JSON.parse(raw) : []);
-    } catch (e) {
-      setBookmarks([]);
-    }
-  };
-
-  const saveBookmark = async (eventId: number, state: boolean) => {
-    let updated = [...bookmarks];
-    if (state) {
-      if (!updated.includes(eventId)) updated.push(eventId);
-    } else {
-      updated = updated.filter((id) => id !== eventId);
-    }
-    setBookmarks(updated);
-    await AsyncStorage.setItem(
-      "informate_bookmarks_v1",
-      JSON.stringify(updated)
-    );
-
-    // optimistic update to backend (if you want real-time sync - optional)
-    // try { await api.post(`/events/${eventId}/bookmark`, { bookmarked: state }); } catch {}
-  };
+  }, [loadBookmarks, loadEvents, requestNotifPermission]);
 
   /* ==========================
      Calendar marked dates
   ========================== */
-  const buildMarkedDates = () => {
+  const buildMarkedDates = useCallback(() => {
     const map: Record<string, any> = {};
     events.forEach((ev) => {
       if (!ev.tanggal_mulai) return;
@@ -133,53 +213,14 @@ export default function TabsHome() {
     }
 
     setMarkedDates(map);
-  };
+  }, [events, selectedDate]);
+
+  useEffect(() => {
+    buildMarkedDates();
+  }, [buildMarkedDates]);
 
   /* ==========================
-     Notifications (local)
-  ========================== */
-  const requestNotifPermission = async () => {
-    try {
-      const settings = await Notifications.getPermissionsAsync();
-      if (!settings.granted) {
-        await Notifications.requestPermissionsAsync();
-      }
-    } catch (e) {
-      // ignore
-    }
-  };
-
-  const scheduleNotificationForEvent = async (ev: any) => {
-    try {
-      if (!ev?.tanggal_mulai) return;
-      const date = new Date(ev.tanggal_mulai);
-      const triggerDate = new Date(date.getTime() - 60 * 60 * 1000); // 1 hour before
-      const diffSec = Math.floor((triggerDate.getTime() - Date.now()) / 1000);
-      if (diffSec > 0) {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: `Pengingat: ${ev.nama_acara}`,
-            body: `Acara dimulai ${date.toLocaleString()}`,
-            sound: true,
-          },
-          trigger: { seconds: diffSec },
-        });
-      }
-    } catch (e) {
-      console.warn("schedule notification failed", e);
-    }
-  };
-
-  const onBookmarkChange = async (eventId: number, state: boolean) => {
-    await saveBookmark(eventId, state);
-    if (state) {
-      const ev = events.find((e) => e.event_id === eventId);
-      if (ev) scheduleNotificationForEvent(ev);
-    }
-  };
-
-  /* ==========================
-     Carousel helpers
+     Carousel helpers & render
   ========================== */
   const featured = (
     events.filter((e) => e.is_featured || e.is_popular) as any[]
@@ -187,31 +228,6 @@ export default function TabsHome() {
   const carouselData = featured.length
     ? featured
     : events.slice(0, Math.min(events.length, 8));
-
-  const startAutoScroll = () => {
-    if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
-    if (!carouselRef.current || carouselData.length <= 1) return;
-    autoScrollTimer.current = setInterval(() => {
-      currentCarouselIndex.current =
-        (currentCarouselIndex.current + 1) % carouselData.length;
-      carouselRef.current?.scrollToOffset({
-        offset: currentCarouselIndex.current * ITEM_WIDTH,
-        animated: true,
-      });
-    }, 4000); // every 4s
-  };
-
-  /* ==========================
-     Calendar toggle animation
-  ========================== */
-  const toggleCalendar = () => {
-    Animated.timing(animCalendar, {
-      toValue: calendarVisible ? 0 : 1,
-      duration: 300,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: false,
-    }).start(() => setCalendarVisible(!calendarVisible));
-  };
 
   /* ==========================
      Small helpers & UI
@@ -237,6 +253,15 @@ export default function TabsHome() {
     </View>
   );
 
+  const toggleCalendar = () => {
+    Animated.timing(animCalendar, {
+      toValue: calendarVisible ? 0 : 1,
+      duration: 300,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start(() => setCalendarVisible(!calendarVisible));
+  };
+
   /* ==========================
      Render
   ========================== */
@@ -245,6 +270,7 @@ export default function TabsHome() {
       <StatusBar
         barStyle={theme === "dark" ? "light-content" : "dark-content"}
       />
+
       {/* HEADER */}
       <View style={styles.header}>
         <View>
@@ -255,7 +281,6 @@ export default function TabsHome() {
         </View>
 
         <View style={styles.headerRight}>
-          {/* Toggle Theme */}
           <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme}>
             <Ionicons
               name={theme === "dark" ? "sunny-outline" : "moon-outline"}
@@ -264,7 +289,6 @@ export default function TabsHome() {
             />
           </TouchableOpacity>
 
-          {/* Profile Button */}
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => router.push("/profile")}
@@ -277,9 +301,6 @@ export default function TabsHome() {
       {/* CONTENT */}
       <ScrollView contentContainerStyle={{ paddingBottom: 160 }}>
         {/* CAROUSEL */}
-        {/* === FIXED NETFLIX-STYLE CAROUSEL === */}
-        {/* === INFINITE NETFLIX-STYLE CAROUSEL === */}
-        {/* === INFINITE NETFLIX-STYLE CAROUSEL (SAFE) === */}
         <View style={{ paddingVertical: 10 }}>
           {carouselData.length > 0 ? (
             <FlatList
@@ -289,10 +310,7 @@ export default function TabsHome() {
               decelerationRate="fast"
               snapToAlignment="center"
               snapToInterval={ITEM_WIDTH + 20}
-              contentContainerStyle={{
-                paddingHorizontal: SIDE_PADDING,
-              }}
-              /* IMPORTANT FIX */
+              contentContainerStyle={{ paddingHorizontal: SIDE_PADDING }}
               getItemLayout={(_, index) => ({
                 length: ITEM_WIDTH + 20,
                 offset: (ITEM_WIDTH + 20) * index,
@@ -322,7 +340,6 @@ export default function TabsHome() {
                 let index = Math.round(
                   ev.nativeEvent.contentOffset.x / (ITEM_WIDTH + 20)
                 );
-
                 if (index === 0) {
                   carouselRef.current?.scrollToIndex({
                     index: carouselData.length,
@@ -337,7 +354,7 @@ export default function TabsHome() {
                 }
               }}
               renderItem={({ item }) => {
-                if (!item) return null; // prevent undefined crash
+                if (!item) return null;
                 return (
                   <TouchableOpacity
                     activeOpacity={0.9}
@@ -370,7 +387,6 @@ export default function TabsHome() {
                       }}
                     />
 
-                    {/* Overlay gradient */}
                     <View
                       style={{
                         position: "absolute",
@@ -460,7 +476,7 @@ export default function TabsHome() {
                   theme === "dark" ? "#1d4ed8" : "#2563eb",
                 selectedDayTextColor: "#fff",
                 arrowColor: theme === "dark" ? "#60a5fa" : "#2563eb",
-                textSectionTitleColor: c.text, // Sun-Mon-Tue color
+                textSectionTitleColor: c.text,
               }}
             />
 

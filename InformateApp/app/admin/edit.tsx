@@ -17,7 +17,6 @@ import { useThemeMode } from "@/hooks/useTheme";
 import { Colors } from "@/constants/colors";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function EditEvent() {
   const { id } = useLocalSearchParams();
@@ -69,7 +68,8 @@ export default function EditEvent() {
         image_url: data.image_url,
         image: null,
       });
-    } catch (e) {
+    } catch (error) {
+      console.log("Error fetch event:", error);
       Alert.alert("Error", "Gagal mengambil data event");
       router.back();
     } finally {
@@ -118,143 +118,145 @@ export default function EditEvent() {
   };
 
   // ==================== TEST FETCH API ====================
-  const testFetchAPI = async () => {
-    Alert.alert("Testing", "Mencoba koneksi dengan Fetch API...");
-    
-    try {
-      // Test 1: GET request sederhana
-      console.log('🧪 Test 1: Fetch GET /api/test');
-      const response1 = await fetch('https://cutest-laura-overfrugally.ngrok-free.dev/api/test', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'ngrok-skip-browser-warning': 'true',
-        }
-      });
-      
-      const data1 = await response1.json();
-      console.log('✅ Test 1 Success:', data1);
-      
-      // Test 2: GET events
-      console.log('🧪 Test 2: Fetch GET /api/events');
-      const token = await AsyncStorage.getItem('userToken');
-      
-      const response2 = await fetch('https://cutest-laura-overfrugally.ngrok-free.dev/api/events', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'ngrok-skip-browser-warning': 'true',
-        }
-      });
-      
-      const data2 = await response2.json();
-      console.log('✅ Test 2 Success:', data2.data.length, 'events');
-      
-      // Test 3: PUT request dengan JSON (bukan FormData)
-      console.log(`🧪 Test 3: Fetch PUT /api/events/${id}`);
-      const response3 = await fetch(`https://cutest-laura-overfrugally.ngrok-free.dev/api/events/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'ngrok-skip-browser-warning': 'true',
-        },
-        body: JSON.stringify({
-          nama_acara: form.nama_acara || 'Test Update Fetch',
-          tanggal_mulai: form.tanggal_mulai || '2025-01-15 10:00:00',
-          lokasi: form.lokasi || 'Jakarta',
-          deskripsi: form.deskripsi || 'Test',
-          kategori: form.kategori || 'Test',
-          harga_tiket: String(form.harga_tiket || '0'),
-          kuota_maksimal: String(form.kuota_maksimal || '100'),
-          contact_person: form.contact_person || '08123456789'
-        })
-      });
-      
-      const data3 = await response3.json();
-      console.log('✅ Test 3 Success:', data3);
-      
-      Alert.alert("Success! ✅", 
-        "Semua test berhasil!\n\n" +
-        "✅ Test 1: API Test OK\n" +
-        "✅ Test 2: GET Events OK\n" +
-        "✅ Test 3: PUT Update OK\n\n" +
-        "Masalah ada di Axios, bukan koneksi!"
-      );
-      
-    } catch (error: any) {
-      console.error('❌ Fetch Test Error:', error);
-      Alert.alert("Error ❌", 
-        `Fetch gagal: ${error.message}\n\n` +
-        "Kemungkinan:\n" +
-        "• Ngrok expired\n" +
-        "• Backend tidak running\n" +
-        "• Koneksi internet bermasalah"
-      );
-    }
-  };
+  // const testFetchAPI = async () => {
+  //   Alert.alert("Testing", "Mencoba koneksi dengan Fetch API...");
+
+  //   try {
+  //     // Test 1: GET request sederhana
+  //     console.log('🧪 Test 1: Fetch GET /api/test');
+  //     const response1 = await fetch('https://cutest-laura-overfrugally.ngrok-free.dev/api/test', {
+  //       method: 'GET',
+  //       headers: {
+  //         'Accept': 'application/json',
+  //         'ngrok-skip-browser-warning': 'true',
+  //       }
+  //     });
+
+  //     const data1 = await response1.json();
+  //     console.log('✅ Test 1 Success:', data1);
+
+  //     // Test 2: GET events
+  //     console.log('🧪 Test 2: Fetch GET /api/events');
+  //     const token = await AsyncStorage.getItem('userToken');
+
+  //     const response2 = await fetch('https://cutest-laura-overfrugally.ngrok-free.dev/api/events', {
+  //       method: 'GET',
+  //       headers: {
+  //         'Accept': 'application/json',
+  //         'Authorization': `Bearer ${token}`,
+  //         'ngrok-skip-browser-warning': 'true',
+  //       }
+  //     });
+
+  //     const data2 = await response2.json();
+  //     console.log('✅ Test 2 Success:', data2.data.length, 'events');
+
+  //     // Test 3: PUT request dengan JSON (bukan FormData)
+  //     console.log(`🧪 Test 3: Fetch PUT /api/events/${id}`);
+  //     const response3 = await fetch(`https://cutest-laura-overfrugally.ngrok-free.dev/api/events/${id}`, {
+  //       method: 'PUT',
+  //       headers: {
+  //         'Accept': 'application/json',
+  //         'Content-Type': 'application/json',
+  //         'Authorization': `Bearer ${token}`,
+  //         'ngrok-skip-browser-warning': 'true',
+  //       },
+  //       body: JSON.stringify({
+  //         nama_acara: form.nama_acara || 'Test Update Fetch',
+  //         tanggal_mulai: form.tanggal_mulai || '2025-01-15 10:00:00',
+  //         lokasi: form.lokasi || 'Jakarta',
+  //         deskripsi: form.deskripsi || 'Test',
+  //         kategori: form.kategori || 'Test',
+  //         harga_tiket: String(form.harga_tiket || '0'),
+  //         kuota_maksimal: String(form.kuota_maksimal || '100'),
+  //         contact_person: form.contact_person || '08123456789'
+  //       })
+  //     });
+
+  //     const data3 = await response3.json();
+  //     console.log('✅ Test 3 Success:', data3);
+
+  //     Alert.alert("Success! ✅",
+  //       "Semua test berhasil!\n\n" +
+  //       "✅ Test 1: API Test OK\n" +
+  //       "✅ Test 2: GET Events OK\n" +
+  //       "✅ Test 3: PUT Update OK\n\n" +
+  //       "Masalah ada di Axios, bukan koneksi!"
+  //     );
+
+  //   } catch (error: any) {
+  //     console.error('❌ Fetch Test Error:', error);
+  //     Alert.alert("Error ❌",
+  //       `Fetch gagal: ${error.message}\n\n` +
+  //       "Kemungkinan:\n" +
+  //       "• Ngrok expired\n" +
+  //       "• Backend tidak running\n" +
+  //       "• Koneksi internet bermasalah"
+  //     );
+  //   }
+  // };
 
   // ==================== UPDATE EVENT ====================
   const handleUpdate = async () => {
     setSaving(true);
-    
+
     try {
       const formData = new FormData();
 
-      formData.append('nama_acara', form.nama_acara);
-      formData.append('tanggal_mulai', form.tanggal_mulai);
-      formData.append('lokasi', form.lokasi);
-      formData.append('deskripsi', form.deskripsi || '');
-      formData.append('kategori', form.kategori);
-      formData.append('harga_tiket', String(form.harga_tiket || '0'));
-      formData.append('kuota_maksimal', String(form.kuota_maksimal || '0'));
-      formData.append('contact_person', form.contact_person || '-');
+      formData.append("nama_acara", form.nama_acara);
+      formData.append("tanggal_mulai", form.tanggal_mulai);
+      formData.append("lokasi", form.lokasi);
+      formData.append("deskripsi", form.deskripsi || "");
+      formData.append("kategori", form.kategori);
+      formData.append("harga_tiket", String(form.harga_tiket || "0"));
+      formData.append("kuota_maksimal", String(form.kuota_maksimal || "0"));
+      formData.append("contact_person", form.contact_person || "-");
 
       if (form.image && form.image.uri) {
-        const uriParts = form.image.uri.split('.');
+        const uriParts = form.image.uri.split(".");
         const fileType = uriParts[uriParts.length - 1];
 
-        formData.append('banner_image', {
-          uri: Platform.OS === 'android' 
-            ? form.image.uri 
-            : form.image.uri.replace('file://', ''),
+        formData.append("banner_image", {
+          uri:
+            Platform.OS === "android"
+              ? form.image.uri
+              : form.image.uri.replace("file://", ""),
           name: `updated_event_${Date.now()}.${fileType}`,
           type: `image/${fileType}`,
         } as any);
-        
-        console.log('📸 Gambar baru akan diupload');
+
+        console.log("📸 Gambar baru akan diupload");
       }
 
-      console.log('📤 Updating event ID:', id);
-      
+      console.log("📤 Updating event ID:", id);
+
       const response = await api.put(`/events/${id}`, formData);
 
-      console.log('✅ Update berhasil:', response.data);
+      console.log("✅ Update berhasil:", response.data);
 
       Alert.alert("Sukses", "Event berhasil diperbarui!");
       router.back();
-
     } catch (error: any) {
       console.error("❌ Error Update:", error);
-      
+
       let errorMessage = "Gagal mengupdate event.";
-      
+
       if (error.response) {
-        errorMessage = error.response.data?.message || 
-                       `Server error: ${error.response.status}`;
-        console.error('📛 Server response:', error.response.data);
+        errorMessage =
+          error.response.data?.message ||
+          `Server error: ${error.response.status}`;
+        console.error("📛 Server response:", error.response.data);
       } else if (error.request) {
-        errorMessage = "Tidak ada respons dari server. Periksa:\n" +
-                       "1. Koneksi internet\n" +
-                       "2. Ngrok aktif\n" +
-                       "3. Backend running";
-        console.error('📛 No response');
+        errorMessage =
+          "Tidak ada respons dari server. Periksa:\n" +
+          "1. Koneksi internet\n" +
+          "2. Ngrok aktif\n" +
+          "3. Backend running";
+        console.error("📛 No response");
       } else {
         errorMessage = error.message;
       }
-      
+
       Alert.alert("Error", errorMessage);
     } finally {
       setSaving(false);
@@ -411,14 +413,14 @@ export default function EditEvent() {
       />
 
       {/* ========== TEST BUTTON ========== */}
-      <TouchableOpacity 
+      {/* <TouchableOpacity 
         style={styles.testBtn}
         onPress={testFetchAPI}
       >
         <Text style={styles.testBtnText}>
           🧪 Test Koneksi (Debug)
         </Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       {/* ========== BUTTON ROW ========== */}
       <View style={styles.btnRow}>
@@ -476,7 +478,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 10,
   },
-  
+
   testBtnText: {
     color: "#fff",
     fontWeight: "bold",
