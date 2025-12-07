@@ -3,10 +3,10 @@ import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
+  FlatList,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../src/api";
@@ -14,6 +14,7 @@ import EventCard from "@/components/EventCard";
 import { useThemeMode } from "@/hooks/useTheme";
 import { Colors } from "@/constants/colors";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 
 export default function BookmarksScreen() {
   const { theme } = useThemeMode();
@@ -64,42 +65,103 @@ export default function BookmarksScreen() {
   const bookmarkedEvents = events.filter((e) => bookmarks.includes(e.event_id));
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: c.background }]}>
-      <Text style={[styles.title, { color: c.text }]}>Bookmarks</Text>
+    <View style={[styles.container]}>
+      {/* WEB3 GRADIENT BACKGROUND */}
+      <LinearGradient
+        colors={["#e0f2fe", "#eef2ff", "#f5f3ff"]}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      {/* Neo-glass Header Card */}
+      <View style={styles.headerCard}>
+        <Text style={[styles.title, { color: "#1e1b4b" }]}>Bookmarks</Text>
+        <Text style={styles.subtitle}>
+          Event favorit Anda tersimpan di sini
+        </Text>
+      </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={c.text} />
+        <ActivityIndicator
+          size="large"
+          color={c.text}
+          style={{ marginTop: 40 }}
+        />
       ) : bookmarkedEvents.length === 0 ? (
         <Text style={[styles.emptyText, { color: c.secondaryText }]}>
           Belum ada bookmark.
         </Text>
       ) : (
-        bookmarkedEvents.map((ev) => (
-          <EventCard
-            key={ev.event_id}
-            event={ev}
-            themeColors={c}
-            bookmarked={true}
-            onPress={() =>
-              router.push({
-                pathname: "/event/detail",
-                params: { id: ev.event_id },
-              })
-            }
-            onBookmarkChange={(state) => {
-              if (!state) removeBookmark(ev.event_id);
-            }}
-          />
-        ))
+        <FlatList
+          data={bookmarkedEvents}
+          keyExtractor={(ev) => ev.event_id.toString()}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          renderItem={({ item }) => (
+            <View style={styles.glassCard}>
+              <EventCard
+                event={item}
+                themeColors={c}
+                bookmarked={true}
+                onPress={() =>
+                  router.push({
+                    pathname: "/event/detail",
+                    params: { id: item.event_id },
+                  })
+                }
+                onBookmarkChange={(state) => {
+                  if (!state) removeBookmark(item.event_id);
+                }}
+              />
+            </View>
+          )}
+        />
       )}
-
-      <View style={{ height: 80 }} />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 24, fontWeight: "800", marginBottom: 12 },
-  emptyText: { textAlign: "center", marginTop: 40 },
+  container: {
+    flex: 1,
+    padding: 16,
+  },
+
+  headerCard: {
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 18,
+    backgroundColor: "rgba(255,255,255,0.45)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.55)",
+    backdropFilter: "blur(15px)",
+  },
+
+  title: {
+    fontSize: 28,
+    fontWeight: "900",
+  },
+
+  subtitle: {
+    fontSize: 14,
+    marginTop: 4,
+    color: "#475569",
+    fontWeight: "500",
+  },
+
+  emptyText: {
+    textAlign: "center",
+    marginTop: 40,
+  },
+
+  glassCard: {
+    marginBottom: 16,
+    borderRadius: 25,
+    backgroundColor: "rgba(255,255,255,0.4)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.65)",
+    padding: 10,
+    shadowColor: "#818cf8",
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
 });
