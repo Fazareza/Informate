@@ -21,6 +21,7 @@ export default function EventDetail() {
     try {
       setLoading(true);
       const res = await api.get(`/events/${id}`);
+      // Pastikan ambil data objectnya langsung
       setEvent(res.data.data);
     } catch (e) {
       console.log("Error load detail:", e);
@@ -40,6 +41,19 @@ export default function EventDetail() {
       </View>
     );
   }
+
+  // Pastikan Kategori ada, jika kosong kasih strip
+  const displayKategori = event.kategori ? event.kategori : "Umum";
+
+  // Konversi Harga dari String "0" ke Integer 0 agar logika deteksi GRATIS jalan
+  const hargaAngka = parseInt(event.harga_tiket);
+  const displayHarga = hargaAngka === 0
+    ? "GRATIS"
+    : `Rp ${hargaAngka.toLocaleString('id-ID')}`;
+
+  // Kuota
+  const displayKuota = event.kuota_maksimal;
+
 
   return (
     <View style={{ flex: 1 }}>
@@ -81,38 +95,50 @@ export default function EventDetail() {
 
           <View style={styles.row}>
             <Ionicons name="calendar-outline" size={20} color="#4338ca" />
-            <Text style={styles.content}>
+            <Text style={[styles.content, { flex: 1 }]}>
               {new Date(event.tanggal_mulai).toLocaleString()}
             </Text>
           </View>
 
           <View style={[styles.row, { marginTop: 8 }]}>
             <Ionicons name="location-outline" size={20} color="#4338ca" />
-            <Text style={styles.content}>{event.lokasi}</Text>
+            <Text style={[styles.content, { flex: 1 }]}>{event.lokasi}</Text>
           </View>
         </View>
 
-        {/* Info Lain */}
+        {/* Info Lain (BAGIAN YANG HILANG TADI) */}
         <View style={styles.glassCard}>
           <Text style={styles.cardTitle}>Info Lainnya</Text>
 
+          {/* KATEGORI */}
           <View style={styles.row}>
             <Ionicons name="pricetag-outline" size={20} color="#4338ca" />
-            <Text style={styles.content}>Kategori: {event.kategori}</Text>
-          </View>
-
-          <View style={[styles.row, { marginTop: 8 }]}>
-            <Ionicons name="cash-outline" size={20} color="#4338ca" />
-            <Text style={styles.content}>
-              Harga:{" "}
-              {event.harga_tiket == 0 ? "GRATIS" : `Rp ${event.harga_tiket}`}
+            {/* Tambahkan flex: 1 agar teks tidak terpotong layout */}
+            <Text style={[styles.content, { flex: 1 }]}>
+              Kategori: {displayKategori}
             </Text>
           </View>
 
+          {/* HARGA */}
+          <View style={[styles.row, { marginTop: 8 }]}>
+            <Ionicons name="cash-outline" size={20} color="#4338ca" />
+            <Text style={[styles.content, { flex: 1 }]}>
+              Harga: {displayHarga}
+            </Text>
+          </View>
+
+          {/* KUOTA */}
           <View style={[styles.row, { marginTop: 8 }]}>
             <Ionicons name="people-outline" size={20} color="#4338ca" />
-            <Text style={styles.content}>
-              Kuota: {event.kuota_maksimal} Peserta
+            <Text style={[styles.content, { flex: 1 }]}>
+              Kuota: {displayKuota} Peserta
+            </Text>
+          </View>
+
+          <View style={[styles.row, { marginTop: 8, alignItems: 'flex-start' }]}>
+            <Ionicons name="call-outline" size={20} color="#4338ca" />
+            <Text style={[styles.content, { flex: 1, flexWrap: 'wrap' }]}>
+              Hubungi: {event.contact_person || "-"}
             </Text>
           </View>
         </View>
