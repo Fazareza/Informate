@@ -1,50 +1,47 @@
-import React, { useState, useCallback } from "react";
+// screens/IndexTabs.tsx
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
-  Text,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
+  FlatList,
   ActivityIndicator,
-  Image,
+  RefreshControl,
+  Text,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { Colors } from "@/constants/colors";
-import { useThemeMode } from "@/hooks/useTheme";
-import { useRouter, useFocusEffect } from "expo-router";
-import api from "../../src/api";
-import { Swipeable } from "react-native-gesture-handler";
+import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
+import EventCard from "../../components/EventCard";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "expo-router";
 
-export default function AdminDashboard() {
-  const { theme, toggleTheme } = useThemeMode();
-  const isDark = theme === "dark";
-  const router = useRouter();
+const Tab = createMaterialTopTabNavigator();
+const STORAGE_KEY = "@informate_saved_events_v1";
 
-  const [events, setEvents] = useState([]);
+function AllScreen({ navigation }: any) {
+  const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // === LOGOUT ===
-  const handleLogout = () => {
-    Alert.alert("Logout", "Yakin ingin keluar?", [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: () => {
-          router.replace("/auth/login");
-        },
-      },
-    ]);
-  };
-
-  // === FETCH EVENTS ===
   const fetchEvents = async () => {
+    setLoading(true);
     try {
-      const res = await api.get("/events");
-      setEvents(res.data.data);
-    } catch (error) {
-      console.log("Error fetching:", error);
+      // ganti ke api.get("/events") di app asli
+      const res = await fetch("https://example.com/api/events"); // placeholder
+      const json = await res.json();
+      setEvents(json.data || []);
+    } catch (e) {
+      console.warn("fetch failed, using mock", e);
+      // fallback mock for demo
+      setEvents([
+        {
+          event_id: "1",
+          nama_acara: "Seminar AI: Tren 2025",
+          tanggal_mulai: new Date().toISOString(),
+          lokasi: "Aula Fasilkom",
+          kategori: "Seminar",
+          image_url: "https://picsum.photos/200/200",
+        },
+        // ...more
+      ]);
     } finally {
       setLoading(false);
     }
@@ -56,290 +53,158 @@ export default function AdminDashboard() {
     }, [])
   );
 
+  const onPress = (item: any) => {
+    navigation.navigate("EventDetail", { id: item.event_id, item });
+  };
+
+  const onEdit = (id: any) => {
+    navigation.push("AdminEdit", { id });
+  };
+
+  const onDelete = (id: any) => {
+    // call delete api, then refresh
+    setEvents((s) => s.filter((e) => e.event_id !== id));
+  };
+
+  const onShare = (it: any) => {
+    // invoke share
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchEvents();
+    setRefreshing(false);
+  };
+
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: Colors[theme].background }]}
-    >
-      {/* ===================== TOPBAR ===================== */}
-      <View style={styles.topbar}>
-        <Text style={[styles.topbarTitle, { color: Colors[theme].text }]}>
-          Admin Dashboard
-        </Text>
-
-        <View style={styles.topbarActions}>
-          {/* Theme Toggle */}
-          <TouchableOpacity onPress={toggleTheme}>
-            <Ionicons
-              name={isDark ? "sunny-outline" : "moon-outline"}
-              size={26}
-              color={Colors[theme].text}
-            />
-          </TouchableOpacity>
-
-          {/* Go to Profile */}
-          <TouchableOpacity onPress={() => router.push("/admin/profile")}>
-            <Ionicons
-              name="person-circle-outline"
-              size={28}
-              color={Colors[theme].text}
-            />
-          </TouchableOpacity>
-
-          {/* Logout */}
-          <TouchableOpacity onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={26} color="#ef4444" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ===================== ANALYTICS ===================== */}
-      <View style={styles.analyticsRow}>
-        <View
-          style={[
-            styles.analyticsCard,
-            {
-              backgroundColor: Colors[theme].card,
-              borderColor: Colors[theme].border,
-            },
-          ]}
-        >
-          <Ionicons name="people-outline" size={30} color="#2563eb" />
-          <Text style={[styles.analyticsNumber, { color: Colors[theme].text }]}>
-            1,241
-          </Text>
-          <Text
-            style={[
-              styles.analyticsLabel,
-              { color: Colors[theme].secondaryText },
-            ]}
-          >
-            Total Users
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.analyticsCard,
-            {
-              backgroundColor: Colors[theme].card,
-              borderColor: Colors[theme].border,
-            },
-          ]}
-        >
-          <Ionicons name="calendar-outline" size={30} color="#10b981" />
-          <Text style={[styles.analyticsNumber, { color: Colors[theme].text }]}>
-            {events.length}
-          </Text>
-          <Text
-            style={[
-              styles.analyticsLabel,
-              { color: Colors[theme].secondaryText },
-            ]}
-          >
-            Total Events
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.analyticsCard,
-            {
-              backgroundColor: Colors[theme].card,
-              borderColor: Colors[theme].border,
-            },
-          ]}
-        >
-          <Ionicons name="shield-checkmark-outline" size={30} color="#f59e0b" />
-          <Text style={[styles.analyticsNumber, { color: Colors[theme].text }]}>
-            3
-          </Text>
-          <Text
-            style={[
-              styles.analyticsLabel,
-              { color: Colors[theme].secondaryText },
-            ]}
-          >
-            Admins
-          </Text>
-        </View>
-      </View>
-
-      {/* ===================== LIST HEADER ===================== */}
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: Colors[theme].text }]}>
-          Daftar Event
-        </Text>
-
-        <TouchableOpacity onPress={() => router.push("/admin/create")}>
-          <Ionicons name="add-circle" size={30} color="#2563eb" />
-        </TouchableOpacity>
-      </View>
-
-      {/* ===================== LIST ===================== */}
+    <View style={{ flex: 1 }}>
       {loading ? (
-        <ActivityIndicator size="large" color={Colors[theme].text} />
+        <ActivityIndicator size="large" style={{ marginTop: 30 }} />
+      ) : events.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={{ fontSize: 16, color: "#6b7280" }}>
+            Belum ada event.
+          </Text>
+        </View>
       ) : (
-        events.map((item: any) => (
-          <Swipeable
-            key={item.event_id}
-            overshootRight={false}
-            renderRightActions={() => (
-              <View style={styles.swipeAction}>
-                <TouchableOpacity
-                  onPress={() =>
-                    router.push({
-                      pathname: "/admin/edit",
-                      params: { id: item.event_id },
-                    })
-                  }
-                  style={styles.swipeButton}
-                >
-                  <Ionicons name="pencil" size={20} color="white" />
-                </TouchableOpacity>
-              </View>
-            )}
-          >
-            <View
-              style={[
-                styles.card,
-                {
-                  backgroundColor: Colors[theme].card,
-                  borderColor: Colors[theme].border,
-                },
-              ]}
-            >
-              {/* Thumbnail */}
-              <Image
-                source={{
-                  uri: item.image_url || "https://via.placeholder.com/100",
-                }}
-                style={styles.thumbnail}
-              />
-
-              {/* Text */}
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.cardTitle, { color: Colors[theme].text }]}>
-                  {item.nama_acara}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.cardDate,
-                    { color: Colors[theme].secondaryText },
-                  ]}
-                >
-                  {new Date(item.tanggal_mulai).toLocaleDateString("id-ID", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.cardSub,
-                    { color: Colors[theme].secondaryText },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {item.lokasi} • {item.kategori}
-                </Text>
-              </View>
-            </View>
-          </Swipeable>
-        ))
+        <FlatList
+          data={events}
+          keyExtractor={(i) => String(i.event_id)}
+          contentContainerStyle={{ padding: 16 }}
+          renderItem={({ item }) => (
+            <EventCard
+              item={item}
+              onPress={onPress}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onShare={onShare}
+            />
+          )}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        />
       )}
+    </View>
+  );
+}
 
-      <View style={{ height: 40 }} />
-    </ScrollView>
+function SavedScreen({ navigation }: any) {
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadSaved = async () => {
+    setLoading(true);
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    setSavedIds(list);
+    // Ideally fetch events by ids
+    // demo: filter from local cache or call `/events?ids=...`
+    setLoading(false);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSaved();
+    }, [])
+  );
+
+  return (
+    <View style={{ flex: 1 }}>
+      {loading ? (
+        <ActivityIndicator size="large" style={{ marginTop: 30 }} />
+      ) : savedIds.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={{ fontSize: 16, color: "#6b7280" }}>
+            Belum ada event tersimpan. Simpan event untuk menemukannya di sini.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={events}
+          keyExtractor={(i) => String(i.event_id)}
+          contentContainerStyle={{ padding: 16 }}
+          renderItem={({ item }) => (
+            <EventCard
+              item={item}
+              initialSaved={true}
+              onPress={(it) =>
+                navigation.navigate("EventDetail", { id: it.event_id })
+              }
+            />
+          )}
+        />
+      )}
+    </View>
+  );
+}
+
+function CalendarScreen() {
+  return (
+    <View style={styles.empty}>
+      <Text style={{ fontSize: 16, color: "#6b7280" }}>
+        Tampilan kalender — (Integrasikan react-native-calendars atau custom
+        calendar)
+      </Text>
+    </View>
+  );
+}
+
+export default function IndexTabs() {
+  return (
+    <Tab.Navigator
+      initialRouteName="All"
+      screenOptions={{
+        tabBarIndicatorStyle: { backgroundColor: "#2563eb" },
+        tabBarActiveTintColor: "#111827",
+        tabBarStyle: { backgroundColor: "#fff" },
+      }}
+    >
+      <Tab.Screen
+        name="All"
+        component={AllScreen}
+        options={{ title: "Semua" }}
+      />
+      <Tab.Screen
+        name="Saved"
+        component={SavedScreen}
+        options={{ title: "Tersimpan" }}
+      />
+      <Tab.Screen
+        name="Calendar"
+        component={CalendarScreen}
+        options={{ title: "Kalender" }}
+      />
+    </Tab.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-
-  // TOPBAR
-  topbar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  empty: {
+    flex: 1,
     alignItems: "center",
-    marginBottom: 25,
-  },
-  topbarTitle: { fontSize: 26, fontWeight: "800" },
-  topbarActions: {
-    flexDirection: "row",
-    gap: 18,
-    alignItems: "center",
-  },
-
-  // ANALYTICS
-  analyticsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 30,
-  },
-  analyticsCard: {
-    width: "30%",
-    paddingVertical: 18,
-    borderRadius: 18,
-    borderWidth: 1,
-    alignItems: "center",
-  },
-  analyticsNumber: { fontSize: 24, fontWeight: "800", marginTop: 6 },
-  analyticsLabel: { fontSize: 12, marginTop: 4 },
-
-  // SECTION HEADER
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-  },
-
-  // CARD
-  card: {
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginBottom: 12,
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  thumbnail: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    backgroundColor: "#ddd",
-  },
-  cardTitle: { fontSize: 16, fontWeight: "700" },
-  cardDate: { fontSize: 12, marginTop: 4 },
-  cardSub: { fontSize: 12, marginTop: 2 },
-
-  // Swipe Action
-  swipeAction: {
     justifyContent: "center",
-    alignItems: "center",
-    width: 70,
-    backgroundColor: "#2563eb",
-    borderRadius: 14,
-    marginBottom: 12,
-  },
-  swipeButton: {
-    width: 70,
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
+    padding: 32,
   },
 });

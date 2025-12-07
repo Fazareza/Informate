@@ -24,10 +24,18 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     try {
       const res = await api.post("/auth/login", { email, password });
+
       await AsyncStorage.setItem("userToken", res.data.token);
 
+      const role = res.data.user?.role || res.data.role; // sesuaikan dengan API-mu
+
       Alert.alert("Sukses", "Login berhasil!");
-      router.replace("/admin");
+
+      if (role === "organizer") {
+        router.replace("/admin");
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (e: any) {
       const msg = e.response?.data?.message || "Login gagal";
       Alert.alert("Error", msg);
@@ -82,6 +90,15 @@ export default function LoginScreen() {
             />
           </TouchableOpacity>
         </View>
+        {/* FORGOT PASSWORD */}
+        <TouchableOpacity
+          onPress={() => router.push("/auth/forgot-password")}
+          style={{ width: "100%", alignItems: "flex-end", marginBottom: 10 }}
+        >
+          <Text style={{ color: "#2563eb", fontWeight: "600" }}>
+            Lupa password?
+          </Text>
+        </TouchableOpacity>
 
         <View style={{ width: '100%', alignItems: 'flex-end', marginBottom: 20 }}>
           <TouchableOpacity onPress={() => router.push("/auth/resetPassword")}>
@@ -139,8 +156,8 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
     resizeMode: "contain",
   },
 
