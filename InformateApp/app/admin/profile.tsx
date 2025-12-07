@@ -16,7 +16,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useThemeMode } from "@/hooks/useTheme";
 import { Colors } from "@/constants/colors";
-import api from "@/src/api"; // Import konfigurasi API kita
+import api from "@/src/api";
 
 export default function ProfileScreen() {
   const router = useRouter();

@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 exports.getAllEvents = async (req, res) => {
     try {
         const { search, category, month, year, startDate, endDate } = req.query;
+        
         let userId = null;
         const authHeader = req.header('Authorization');
         if (authHeader) {
@@ -12,6 +13,7 @@ exports.getAllEvents = async (req, res) => {
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
                 userId = decoded.id;
             } catch (err) {
+               
             }
         }
 
@@ -25,6 +27,8 @@ exports.getAllEvents = async (req, res) => {
                 e.banner_image, 
                 e.kategori, 
                 e.harga_tiket,
+                e.kuota_maksimal,
+                e.contact_person,
                 -- Subquery untuk cek status bookmark user saat ini
                 (SELECT COUNT(*) FROM bookmarks b WHERE b.event_id = e.event_id AND b.user_id = ?) AS is_bookmarked
             FROM events e
@@ -33,6 +37,7 @@ exports.getAllEvents = async (req, res) => {
         
         const params = [userId || 0];
 
+        // 3. FILTER LOGIC
         if (search) {
             query += ` AND e.nama_acara LIKE ?`;
             params.push(`%${search}%`);
@@ -41,10 +46,12 @@ exports.getAllEvents = async (req, res) => {
             query += ` AND e.kategori = ?`;
             params.push(category);
         }
+        // Filter Kalender (Bulan & Tahun)
         if (month && year) {
             query += ` AND MONTH(e.tanggal_mulai) = ? AND YEAR(e.tanggal_mulai) = ?`;
             params.push(month, year);
         }
+        // Filter Rentang Tanggal
         if (startDate && endDate) {
             query += ` AND DATE(e.tanggal_mulai) BETWEEN ? AND ?`;
             params.push(startDate, endDate);
@@ -53,43 +60,32 @@ exports.getAllEvents = async (req, res) => {
         query += ` ORDER BY e.tanggal_mulai ASC`;
 
         const [rows] = await db.query(query, params);
+        
+        const finalData = rows.map(event => ({
+            ...event,
+            is_bookmarked: event.is_bookmarked > 0, 
 
-        const finalData = rows.map(event => {
-            // 1. Ambil base URL server (otomatis mendeteksi http/https dan domain ngrok)
-            const protocol = req.protocol;
-            const host = req.get('host');
-            
-            // 2. Rakit URL lengkap
-            // Jika banner_image ada, gabungkan. Jika tidak, null.
-            const fullImageUrl = event.banner_image 
-                ? `${protocol}://${host}/uploads/${event.banner_image}` 
-                : null;
-
-            return {
-                ...event,
-                is_bookmarked: event.is_bookmarked > 0,
-                image_url: fullImageUrl // <--- INI KUNCINYA (Frontend baca field ini)
-            };
-        });
+            image_url: event.banner_image 
+        }));
 
         res.status(200).json({
             success: true,
+            message: 'Berhasil mengambil data event',
             data: finalData
         });
 
     } catch (error) {
+        console.error("Error getAllEvents:", error);
         res.status(500).json({ success: false, message: 'Server Error', error: error.message });
     }
 };
 
 exports.getCategories = async (req, res) => {
     try {
-        // SELECT DISTINCT agar tidak ada kategori kembar yang muncul
         const query = `SELECT DISTINCT kategori FROM events WHERE kategori IS NOT NULL AND kategori != '' ORDER BY kategori ASC`;
         
         const [rows] = await db.query(query);
 
-        // Ubah format jadi array string sederhana: ['Seminar', 'Workshop', 'Lomba']
         const categories = rows.map(item => item.kategori);
 
         res.status(200).json({
@@ -104,7 +100,7 @@ exports.getCategories = async (req, res) => {
 
 exports.getEventById = async (req, res) => {
     try {
-        const { id } = req.params; // Ambil ID dari URL
+        const { id } = req.params;
 
         const query = `
             SELECT 
@@ -123,14 +119,11 @@ exports.getEventById = async (req, res) => {
 
         const event = rows[0];
 
-        // === RAKIT URL UNTUK DETAIL ===
         const protocol = req.protocol;
         const host = req.get('host');
         const fullImageUrl = event.banner_image 
             ? `${protocol}://${host}/uploads/${event.banner_image}` 
             : null;
-
-        // Gabungkan ke object response
         const eventData = {
             ...event,
             image_url: fullImageUrl
@@ -138,7 +131,7 @@ exports.getEventById = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            data: eventData // Kirim objek tunggal (bukan array)
+            data: eventData
         });
 
     } catch (error) {
@@ -154,15 +147,16 @@ exports.createEvent = async (req, res) => {
             kategori, kuota_maksimal, harga_tiket, contact_person 
         } = req.body;
 
-        // Validasi
         if (!nama_acara || !tanggal_mulai || !lokasi) {
-            return res.status(400).json({ message: 'Nama acara, tanggal, dan lokasi wajib diisi!' });
+            return res.status(400).json({ message: 'Wajib diisi!' });
         }
 
-        // Ambil ID dari Token (Otomatis dari authMiddleware)
         const userId = req.user ? req.user.id : null;
-        const bannerImage = req.file ? req.file.filename : 'default_event.jpg';
-        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+        
+        let bannerImage = null;
+        if (req.file) {
+            bannerImage = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        }
 
         const query = `
             INSERT INTO events 
@@ -172,25 +166,15 @@ exports.createEvent = async (req, res) => {
 
         const [result] = await db.query(query, [
             nama_acara, deskripsi, tanggal_mulai, lokasi, kategori, 
-            kuota_maksimal || 0, 
-            harga_tiket || 0, 
-            contact_person || '-', 
+            kuota_maksimal || 0, harga_tiket || 0, contact_person || '-', 
             bannerImage,
             userId
         ]);
 
-        const protocol = req.protocol; 
-        const host = req.get('host'); 
-        const fullImageUrl = `${protocol}://${host}/uploads/${bannerImage}`;
-
         res.status(201).json({
             success: true,
             message: 'Event berhasil ditambahkan',
-            data: { 
-                event_id: result.insertId, 
-                nama_acara,
-                image_url: fullImageUrl // Kirim URL lengkap agar mudah dipakai frontend
-            }
+            data: { event_id: result.insertId }
         });
 
     } catch (error) {
@@ -198,7 +182,7 @@ exports.createEvent = async (req, res) => {
     }
 };
 
-// 3. EDIT EVENT (Butuh Login - Frontend yang filter tombolnya)
+// 3. EDIT EVENT
 exports.updateEvent = async (req, res) => {
     try {
         const { id } = req.params;
@@ -207,21 +191,14 @@ exports.updateEvent = async (req, res) => {
             kategori, kuota_maksimal, harga_tiket, contact_person 
         } = req.body;
 
-        // 1. Ambil data lama untuk cek gambar lama
         const [oldData] = await db.query('SELECT banner_image FROM events WHERE event_id = ?', [id]);
-        if (oldData.length === 0) {
-            return res.status(404).json({ message: 'Event tidak ditemukan' });
-        }
+        if (oldData.length === 0) return res.status(404).json({ message: 'Event tidak ditemukan' });
 
-        // 2. LOGIKA GAMBAR PINTAR
-        // Jika user upload gambar baru (req.file ada), pakai nama file baru.
-        // Jika tidak, tetap pakai nama file lama (dari database).
-        let bannerImage = oldData[0].banner_image; 
+        let bannerImage = oldData[0].banner_image;
         if (req.file) {
-            bannerImage = req.file.filename;
+            bannerImage = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
         }
 
-        // 3. Update Query (Pastikan kolom banner_image ikut di-update)
         const query = `
             UPDATE events SET 
             nama_acara = ?, deskripsi = ?, tanggal_mulai = ?, lokasi = ?, 
@@ -233,22 +210,18 @@ exports.updateEvent = async (req, res) => {
         await db.query(query, [
             nama_acara, deskripsi, tanggal_mulai, lokasi, 
             kategori, kuota_maksimal || 0, harga_tiket || 0, contact_person,
-            bannerImage, // Variabel gambar yang sudah dipilih
+            bannerImage,
             id
         ]);
 
-        res.status(200).json({
-            success: true,
-            message: 'Event berhasil diperbarui'
-        });
+        res.status(200).json({ success: true, message: 'Event berhasil diperbarui' });
 
     } catch (error) {
-        console.log("Error Update:", error); // Log error di terminal backend
-        res.status(500).json({ success: false, message: 'Gagal update event', error: error.message });
+        res.status(500).json({ success: false, message: 'Gagal update', error: error.message });
     }
 };
 
-// 4. HAPUS EVENT (Butuh Login - Frontend yang filter tombolnya)
+// 4. HAPUS EVENT
 exports.deleteEvent = async (req, res) => {
     try {
         const { id } = req.params;
